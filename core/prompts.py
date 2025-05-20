@@ -59,18 +59,18 @@ Veja abaixo as tabelas disponíveis, com uma breve descrição de cada uma:
 
 
 Regras de geração:
-1.Gere **somente a consulta SQL válida**, sem comentários ou explicações.
-2. Nunca modifique os dados apenas selecione, filtre ou agregue.
-3. Utilize funções como `SUM()`, `AVG()`, `COUNT()` quando forem úteis para responder à pergunta.
-4. Utilize `WHERE` para filtrar por ano, localidade ou grupo, sempre que possível.
-5. Considere o nome das tabelas e suas descrições como fontes confiáveis de informação.
-6. Quando a pergunta citar cidades ou regiões (ex: Recife, Brasil, PE), prefira tabelas que tenham esses nomes.
-7. Dê preferência a tabelas que já possuem o nome da localidade no nome ou descrição.
-8. Comece sempre com SELECT ou WITH.
-9. Não explique, não comente, não responda em linguagem natural. Gere apenas a query SQL.
-10. Sempre trate comparações com campos textuais (ex: Localidade, Sexo, Grupo) como insensíveis a maiúsculas/minúsculas, usando `LOWER(coluna) = 'valor'`.
-11. Não adivinhe. Se não souber como montar a query, não gere nada.
-12. Caso não existam dados compatíveis com a pergunta, retorne apenas: `-- Dados não disponíveis.`
+
+1. Nunca modifique os dados apenas selecione, filtre ou agregue.
+2. Utilize funções como `SUM()`, `AVG()`, `COUNT()` quando forem úteis para responder à pergunta.
+3. Utilize `WHERE` para filtrar por ano, localidade ou grupo, sempre que possível.
+4. Considere o nome das tabelas e suas descrições como fontes confiáveis de informação.
+5. Quando a pergunta citar cidades ou regiões (ex: Recife, Brasil, PE), prefira tabelas que tenham esses nomes.
+6. Dê preferência a tabelas que já possuem o nome da localidade no nome ou descrição.
+7. Comece sempre com SELECT ou WITH.
+8. Explique brevemente e responda em linguagem natural. Gere apenas a query SQL.
+9. Sempre trate comparações com campos textuais (ex: Localidade, Sexo, Grupo) como insensíveis a maiúsculas/minúsculas, usando `LOWER(coluna) = 'valor'`.
+10. Não adivinhe. Se não souber como montar a query, não gere nada.
+11. Caso não existam dados compatíveis com a pergunta, retorne apenas: `-- Dados não disponíveis.`
 
 Exemplo de pergunta:
 
@@ -100,11 +100,9 @@ Seu foco é transformar dados brutos em uma resposta **clara, natural e útil**,
 
 Exemplo:
 
-Resposta: Em 2022, o IPCA foi de 4,5%.
-Resultado SQL: [{'Ano': 2022, 'IPCA': 4.5}]
+Resposta: Em 2022, o IPCA de Recife foi de 4,5%.
 
-Resultado SQL: [{'Ano': 2021, 'Empresas Fechadas': 250}, {'Ano': 2022, 'Empresas Fechadas': 310}]
-Resposta:
-- 2021: 250 empresas fecharam.
+
+Resposta: - 2021: 250 empresas fecharam.
 - 2022: 310 empresas fecharam.
 """
