@@ -4,9 +4,27 @@ from core.history import init_history_db
 from ui.layout import apply_custom_styles
 from ui.typing_effect import render_typing_effect
 
+# ✅ TEM QUE SER O PRIMEIRO COMANDO DO STREAMLIT
+st.set_page_config(
+    page_title="HuB-IA",
+    page_icon="ui/static/detalhe.png",
+    layout="centered"
+)
+
 init_history_db()
-st.set_page_config(page_title="HuB-IA", page_icon="🏦", layout="centered")
 apply_custom_styles()
+
+# ✅ Exibe a logo no canto superior
+st.logo(
+    image="ui/static/logo.png.png",
+    size="large"
+)
+
+# Cria colunas para centralizar a imagem com espaçamento
+col1, col2, col3 = st.columns([1, 2, 1])
+with col2:
+    
+    st.markdown("<div style='margin-bottom: 1rem;'></div>", unsafe_allow_html=True)
 
 st.markdown('<h1 aria-label="assistente HuB-IA">O que você quer saber?</h1>', unsafe_allow_html=True)
 
