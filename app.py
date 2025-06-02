@@ -136,7 +136,6 @@ if submit and pergunta.strip():
             registro = {
                 "pergunta": pergunta,
                 "resposta": resposta,
-                "sql": sql
             }
             st.session_state.historico.append(registro)
             st.session_state.resposta_atual = registro
@@ -151,8 +150,7 @@ if submit and pergunta.strip():
 # --- EXIBIÇÃO DA RESPOSTA ---
 if st.session_state.resposta_atual:
     typing_effect(st.session_state.resposta_atual["resposta"])
-    with st.expander("📄 Ver SQL gerado"):
-        st.code(st.session_state.resposta_atual["sql"], language="sql")
+
     st.markdown("<p class='placeholder-text'>Você pode perguntar por ano, por localidade ou comparar períodos distintos.</p>", unsafe_allow_html=True)
 
     sugestoes = sugerir_perguntas(st.session_state.resposta_atual["pergunta"])
