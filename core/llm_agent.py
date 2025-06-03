@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 _LLM = OllamaLLM(model="phi4-mini")
 
 
+
 def normalize_question(q: str) -> str:
     replacements = {
         r"\binflação\b": "IPCA",

@@ -60,8 +60,7 @@ def typing_effect(text, speed=0.01):
         time.sleep(speed)
 
 def sugerir_perguntas(pergunta):
-    pergunta = pergunta.lower()
-    if "ipca" in pergunta:
+    if "ipca" in pergunta.lower():
         return [
             "Qual a média do IPCA em 2023?",
             "Compare o IPCA entre Recife e Salvador.",
@@ -118,7 +117,7 @@ with st.form("pergunta_form", clear_on_submit=True):
 if submit and pergunta.strip():
     try:
         resposta, sql, dados = consultar(pergunta)
-
+        
         if not is_read_only_query(sql):
             st.error("⚠️ Apenas comandos de leitura (SELECT) são permitidos.")
         else:
