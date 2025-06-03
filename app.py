@@ -1,84 +1,83 @@
 import streamlit as st
 import time
-from rapidfuzz import process
+import logging
+import re
+import pandas as pd
 from core.engine import auto_generate_and_run_query
 
-# Adicione este import para capturar erros específicos do Ollama
 try:
     from ollama._client import ResponseError
 except ImportError:
-    ResponseError = Exception  # fallback para ambientes sem Ollama
+    ResponseError = Exception
+
+# --- LOG DE ERROS ---
+logging.basicConfig(filename="hubia_erros.log", level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # --- CONFIGURAÇÃO DE PÁGINA ---
-st.set_page_config(page_title="HuB‑IA – Assistente Inteligente para Dados Públicos da Fecomércio", layout="wide")
+st.set_page_config(
+    page_title="HuB‑IA – Assistente Inteligente para Dados Públicos da Fecomércio",
+    layout="wide"
+)
 
-# --- ESTILOS PERSONALIZADOS ---
+# --- ESTILOS ---
 st.markdown("""
     <style>
-        body {
-            background-color: #0E1117;
-            color: white;
-        }
-        .stTextInput > div > input {
-            font-size: 20px !important;
-        }
-        .main-title {
-            font-size: 40px !important;
-            text-align: center;
-            font-weight: bold;
-            margin-top: 1em;
-        }
-        .sub-title {
-            font-size: 24px !important;
-            text-align: center;
-            margin-top: 0.5em;
-        }
-        .placeholder-text {
-            font-style: italic;
-            color: #ccc;
-            text-align: center;
-        }
+        body { background-color: #0E1117; color: white; }
+        .stTextInput > div > input { font-size: 20px !important; }
+        .main-title { font-size: 40px !important; text-align: center; font-weight: bold; margin-top: 1em; }
+        .sub-title { font-size: 24px !important; text-align: center; margin-top: 0.5em; }
+        .placeholder-text { font-style: italic; color: #ccc; text-align: center; }
     </style>
 """, unsafe_allow_html=True)
 
 # --- ESTADO DA SESSÃO ---
-if "historico" not in st.session_state:
-    st.session_state.historico = []
-
-if "resposta_atual" not in st.session_state:
-    st.session_state.resposta_atual = None
-
-if "mostrar_sobre" not in st.session_state:
-    st.session_state.mostrar_sobre = False
+st.session_state.setdefault("historico", [])
+st.session_state.setdefault("resposta_atual", None)
+st.session_state.setdefault("mostrar_sobre", False)
 
 # --- FUNÇÕES ---
-def consultar(pergunta):
-    resultado = auto_generate_and_run_query(pergunta.strip())
-    return resultado["interpretacao"], resultado["sql"]
+def corrigir_sql(sql: str) -> str:
+    sql = re.sub(r"\'\s*-\s*(group|order|having|limit)\b", r"'\n\1", sql, flags=re.IGNORECASE)
+    sql = re.sub(r"([^\s])-(group|order|having|limit)\b", r"\1 \2", sql, flags=re.IGNORECASE)
+    sql = re.sub(r"\s+;", ";", sql)
+    return sql
 
-def corrigir_coluna(coluna_gerada, colunas_validas):
-    match, score, _ = process.extractOne(coluna_gerada, colunas_validas)
-    return match if score > 80 else coluna_gerada
+def consultar(pergunta):
+    try:
+        resultado = auto_generate_and_run_query(pergunta.strip())
+        sql_corrigido = corrigir_sql(resultado.get("sql", ""))
+        interpretacao = resultado.get("interpretacao", "Sem interpretação disponível.")
+        dados = resultado.get("resultado", [])
+
+        logging.info(f"Pergunta: {pergunta}")
+        logging.info(f"SQL gerado: {sql_corrigido}")
+        logging.info(f"Quantidade de linhas retornadas: {len(dados)}")
+
+        return interpretacao, sql_corrigido, dados
+    except Exception as e:
+        logging.error(f"Erro ao gerar ou executar query: {e}", exc_info=True)
+        return f"❌ Erro ao interpretar a pergunta: {str(e)}", "", []
 
 def is_read_only_query(sql):
     return sql.strip().lower().startswith("select")
 
 def typing_effect(text, speed=0.01):
     placeholder = st.empty()
-    typed_text = ""
+    typed = ""
     for char in text:
-        typed_text += char
-        placeholder.markdown(typed_text)
+        typed += char
+        placeholder.markdown(typed)
         time.sleep(speed)
 
 def sugerir_perguntas(pergunta):
-    if "ipca" in pergunta.lower():
+    pergunta = pergunta.lower()
+    if "ipca" in pergunta:
         return [
             "Qual a média do IPCA em 2023?",
             "Compare o IPCA entre Recife e Salvador.",
             "IPCA variou quanto em janeiro de 2022?"
         ]
-    elif "pms" in pergunta.lower():
+    elif "pms" in pergunta:
         return [
             "Qual foi a variação da PMS em São Paulo?",
             "PMS de 2020 a 2023 no Brasil."
@@ -92,12 +91,10 @@ with st.sidebar:
         st.session_state.mostrar_sobre = not st.session_state.mostrar_sobre
 
     st.markdown("---")
-
     st.subheader("🕘 Histórico")
-    if st.session_state.historico:
-        for i, item in enumerate(reversed(st.session_state.historico)):
-            if st.button(item['pergunta'], key=f"hist_{i}"):
-                st.session_state.resposta_atual = item
+    for i, item in enumerate(reversed(st.session_state.historico)):
+        if st.button(item['pergunta'], key=f"hist_{i}"):
+            st.session_state.resposta_atual = item
     if st.button("🧹 Limpar histórico"):
         st.session_state.historico.clear()
         st.session_state.resposta_atual = None
@@ -122,34 +119,45 @@ if st.session_state.mostrar_sobre:
     st.stop()
 
 st.markdown('<div class="sub-title">O que você quer saber?</div>', unsafe_allow_html=True)
-pergunta = st.text_input("", placeholder="Qual a inflação acumulada em Recife?", label_visibility="collapsed")
-submit = st.button("enviar")
 
-# --- PROCESSAMENTO ---
+# --- FORMULÁRIO COM ENTER ---
+with st.form("pergunta_form", clear_on_submit=True):
+    pergunta = st.text_input("", placeholder="Qual a inflação acumulada em Recife?", label_visibility="collapsed")
+    submit = st.form_submit_button("enviar")
+
 if submit and pergunta.strip():
     try:
-        resposta, sql = consultar(pergunta)
+        resposta, sql, dados = consultar(pergunta)
 
-        if not is_read_only_query(sql):
+        if not sql:
+            st.error(resposta)  # Exibe erro na geração SQL ou execução
+        elif not is_read_only_query(sql):
             st.error("⚠️ Apenas comandos de leitura (SELECT) são permitidos.")
         else:
-            registro = {
-                "pergunta": pergunta,
-                "resposta": resposta,
-            }
+            registro = {"pergunta": pergunta, "resposta": resposta, "dados": dados}
             st.session_state.historico.append(registro)
             st.session_state.resposta_atual = registro
 
-    except ResponseError as e:
-        st.error("❌ Erro ao se comunicar com o modelo LLM.")
-        st.code(f"Status: {e.status_code}\nMensagem: {e.args[0]}")
-    except Exception as e:
-        st.error("❌ Ocorreu um erro inesperado.")
-        st.code(str(e))
+    except ResponseError:
+        logging.exception(f"Erro LLM - pergunta: {pergunta}")
+        st.error("❌ Erro ao processar a pergunta. Tente novamente mais tarde.")
+    except Exception:
+        logging.exception(f"Erro inesperado - pergunta: {pergunta}")
+        st.error("❌ Ocorreu um erro ao interpretar sua pergunta. Tente reformular.")
 
 # --- EXIBIÇÃO DA RESPOSTA ---
 if st.session_state.resposta_atual:
     typing_effect(st.session_state.resposta_atual["resposta"])
+
+    if st.session_state.resposta_atual.get("dados"):
+        df = pd.DataFrame(st.session_state.resposta_atual["dados"])
+        if not df.empty:
+            st.markdown("### Resultado da consulta:")
+            st.dataframe(df)
+        else:
+            st.warning("⚠️ Nenhum dado encontrado para essa consulta.")
+    else:
+        st.warning("⚠️ Nenhum dado encontrado para essa consulta.")
 
     st.markdown("<p class='placeholder-text'>Você pode perguntar por ano, por localidade ou comparar períodos distintos.</p>", unsafe_allow_html=True)
 

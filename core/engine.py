@@ -21,6 +21,13 @@ def clean_query_output(sql: str) -> str:
     cleaned = [line for line in lines if not line.lower().startswith(("ai:", "resposta:", "sql:"))]
     return "\n".join(cleaned).strip()
 
+def corrigir_erro_sintaxe(sql: str) -> str:
+    # Corrige erro comum: '-group by' ou similares
+    sql = re.sub(r"\'\s*-\s*(group|order|having|limit)\b", r"'\n\1", sql, flags=re.IGNORECASE)
+    sql = re.sub(r"([^\s])-(group|order|having|limit)\b", r"\1 \2", sql, flags=re.IGNORECASE)
+    sql = re.sub(r"\s+;", ";", sql)
+    return sql
+
 def extract_identifiers(sql: str) -> list[str]:
     sql = re.sub(r"\s+AS\s+\w+", "", sql, flags=re.IGNORECASE)
     sql = re.sub(r"'[^']*'", "", sql)
@@ -86,18 +93,19 @@ def auto_generate_and_run_query(question: str):
                     "tabela": "Consulta anterior reaproveitada"
                 }
             except Exception as e:
-                raise RuntimeError(f"Erro ao recuperar contexto anterior.\n\n{e}")
+                logger.exception(f"Erro ao recuperar contexto anterior: {e}")
+                raise RuntimeError("Ocorreu um erro ao interpretar sua pergunta anterior. Tente reformular.")
         else:
             raise RuntimeError("Não há contexto anterior suficiente para interpretar essa pergunta.")
 
     sql = generate_sql_with_memory(question)
     sql = clean_query_output(sql)
+    sql = corrigir_erro_sintaxe(sql)
 
     if not is_valid_sql_structure(sql):
         raise RuntimeError(
             "A IA não conseguiu gerar uma consulta SQL válida para essa pergunta.\n"
-            "Tente reformular sua pergunta, seja mais específico, ou verifique se os dados realmente existem.\n\n"
-            f"Saída recebida:\n{sql}"
+            "Tente reformular sua pergunta, seja mais específico, ou verifique se os dados realmente existem."
         )
 
     col_invalidas, col_validas = validate_columns_in_query(sql)
@@ -105,13 +113,10 @@ def auto_generate_and_run_query(question: str):
     if col_invalidas:
         logger.warning(f"[COLUNAS INVÁLIDAS] {col_invalidas}")
         sql_corrigido = auto_correct_sql(sql, col_invalidas, col_validas)
-
         col_invalidas_corrigidas, _ = validate_columns_in_query(sql_corrigido)
         if col_invalidas_corrigidas:
-            raise RuntimeError(
-                f"Não foi possível corrigir automaticamente as colunas inválidas: {', '.join(col_invalidas_corrigidas)}.\n"
-                f"Query original:\n{sql}"
-            )
+            logger.error(f"[COLUNAS NÃO CORRIGIDAS] {col_invalidas_corrigidas}")
+            raise RuntimeError("Ocorreu um erro ao processar sua pergunta. Verifique se os dados existem ou reformule.")
         else:
             logger.info("[SQL CORRIGIDA] Correção automática bem-sucedida.")
             sql = sql_corrigido
@@ -126,7 +131,5 @@ def auto_generate_and_run_query(question: str):
             "tabela": "Detectada automaticamente"
         }
     except Exception as e:
-        logger.error(f"[EXEC SQL ERRO] {sql} — {e}")
-        raise RuntimeError(
-            f"Erro ao executar a query (mesmo após tentativa de correção).\n\nSQL:\n{sql}\n\nDetalhes:\n{e}"
-        )
+        logger.error(f"[EXEC SQL ERRO] SQL: {sql} — Erro: {e}")
+        raise RuntimeError("❌ Ocorreu um erro ao executar a consulta. Tente reformular sua pergunta.")
