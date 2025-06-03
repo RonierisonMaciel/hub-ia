@@ -3,3 +3,6 @@ langchain_community
 streamlit
 ollama
 rapidfuzz 
+pytest
+dotenv
+matplotlib

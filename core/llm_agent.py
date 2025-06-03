@@ -15,8 +15,7 @@ from core.history import get_history, add_to_history
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Modelo carregado
-_LLM = OllamaLLM(model="phi4-mini")
+_LLM = OllamaLLM(model="llama3.2")
 
 
 def normalize_question(q: str) -> str:
@@ -65,18 +64,6 @@ def generate_sql(question: str, table: str) -> str:
     raw = _LLM.invoke(messages)
     return strip_sql_markup(raw)
 
-
-@lru_cache(maxsize=64)
-def generate_sql_global(question: str) -> str:
-    messages = [
-        {"role": "system", "content": make_system_prompt_all()},
-        {"role": "user", "content": question},
-    ]
-    raw = _LLM.invoke(messages)
-    return strip_sql_markup(raw)
-
-
-@lru_cache(maxsize=64)
 def interpret(sql: str, db_result: Any) -> str:
     resumo_prompt = (
         f"Resultado da consulta SQL: {db_result}\n"
