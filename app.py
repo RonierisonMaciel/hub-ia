@@ -3,6 +3,7 @@ import time
 import logging
 import re
 import pandas as pd
+from rapidfuzz import process
 from core.engine import auto_generate_and_run_query
 
 try:
@@ -11,7 +12,7 @@ except ImportError:
     ResponseError = Exception
 
 # --- LOG DE ERROS ---
-logging.basicConfig(filename="hubia_erros.log", level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(filename="hubia_erros.log", level=logging.ERROR)
 
 # --- CONFIGURAÇÃO DE PÁGINA ---
 st.set_page_config(
@@ -43,20 +44,9 @@ def corrigir_sql(sql: str) -> str:
     return sql
 
 def consultar(pergunta):
-    try:
-        resultado = auto_generate_and_run_query(pergunta.strip())
-        sql_corrigido = corrigir_sql(resultado.get("sql", ""))
-        interpretacao = resultado.get("interpretacao", "Sem interpretação disponível.")
-        dados = resultado.get("resultado", [])
-
-        logging.info(f"Pergunta: {pergunta}")
-        logging.info(f"SQL gerado: {sql_corrigido}")
-        logging.info(f"Quantidade de linhas retornadas: {len(dados)}")
-
-        return interpretacao, sql_corrigido, dados
-    except Exception as e:
-        logging.error(f"Erro ao gerar ou executar query: {e}", exc_info=True)
-        return f"❌ Erro ao interpretar a pergunta: {str(e)}", "", []
+    resultado = auto_generate_and_run_query(pergunta.strip())
+    sql_corrigido = corrigir_sql(resultado["sql"])
+    return resultado["interpretacao"], sql_corrigido, resultado.get("resultado", [])
 
 def is_read_only_query(sql):
     return sql.strip().lower().startswith("select")
@@ -129,9 +119,7 @@ if submit and pergunta.strip():
     try:
         resposta, sql, dados = consultar(pergunta)
 
-        if not sql:
-            st.error(resposta)  # Exibe erro na geração SQL ou execução
-        elif not is_read_only_query(sql):
+        if not is_read_only_query(sql):
             st.error("⚠️ Apenas comandos de leitura (SELECT) são permitidos.")
         else:
             registro = {"pergunta": pergunta, "resposta": resposta, "dados": dados}
@@ -149,13 +137,18 @@ if submit and pergunta.strip():
 if st.session_state.resposta_atual:
     typing_effect(st.session_state.resposta_atual["resposta"])
 
-    if st.session_state.resposta_atual.get("dados"):
-        df = pd.DataFrame(st.session_state.resposta_atual["dados"])
-        if not df.empty:
-            st.markdown("### Resultado da consulta:")
-            st.dataframe(df)
-        else:
-            st.warning("⚠️ Nenhum dado encontrado para essa consulta.")
+    dados = st.session_state.resposta_atual.get("dados")
+    if dados and isinstance(dados, list):
+        try:
+            df = pd.DataFrame(dados)
+            if not df.empty:
+                st.markdown("### Resultado:")
+                st.dataframe(df)
+            else:
+                st.warning("⚠️ Nenhum dado encontrado para essa consulta.")
+        except Exception as e:
+            st.error("❌ Erro ao exibir os dados.")
+            st.exception(e)
     else:
         st.warning("⚠️ Nenhum dado encontrado para essa consulta.")
 
