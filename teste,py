@@ -1,0 +1,4 @@
+import streamlit as st
+from langchain_community.utilities import SQLDatabase
+
+print("Tudo certo!")

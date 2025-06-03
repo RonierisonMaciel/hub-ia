@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from langchain_community.utilities import SQLDatabase
+from langchain_community.utilities.sql_database import SQLDatabase
+
 from core.utils import DB_PATH, list_tables as _list_tables
 
 _DB_URI = f"sqlite:///{DB_PATH}"
