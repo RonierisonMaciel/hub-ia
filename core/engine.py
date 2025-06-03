@@ -1,7 +1,6 @@
 from core.llm_agent import generate_sql_with_memory, interpret
 from core.database import run_query
 from core.utils import list_tables, describe_table
-from core.history import get_history
 import re
 import logging
 from difflib import get_close_matches
@@ -20,13 +19,6 @@ def clean_query_output(sql: str) -> str:
     lines = sql.strip().splitlines()
     cleaned = [line for line in lines if not line.lower().startswith(("ai:", "resposta:", "sql:"))]
     return "\n".join(cleaned).strip()
-
-def corrigir_erro_sintaxe(sql: str) -> str:
-    # Corrige erro comum: '-group by' ou similares
-    sql = re.sub(r"\'\s*-\s*(group|order|having|limit)\b", r"'\n\1", sql, flags=re.IGNORECASE)
-    sql = re.sub(r"([^\s])-(group|order|having|limit)\b", r"\1 \2", sql, flags=re.IGNORECASE)
-    sql = re.sub(r"\s+;", ";", sql)
-    return sql
 
 def extract_identifiers(sql: str) -> list[str]:
     sql = re.sub(r"\s+AS\s+\w+", "", sql, flags=re.IGNORECASE)
@@ -75,37 +67,18 @@ def is_valid_sql_structure(sql: str) -> bool:
     sql = sql.strip().lower()
     return sql.startswith("select") or sql.startswith("with")
 
-def retrieve_last_sql_context() -> tuple[str, list[dict]]:
-    history = get_history(limit=20)
-    last_sql = next((h["content"] for h in reversed(history) if h["role"] == "assistant"), None)
-    return last_sql, history
-
 def auto_generate_and_run_query(question: str):
     if is_interpretative(question):
-        last_sql, _ = retrieve_last_sql_context()
-        if last_sql:
-            try:
-                result = run_query(last_sql)
-                return {
-                    "sql": last_sql,
-                    "resultado": result,
-                    "interpretacao": interpret(last_sql, result),
-                    "tabela": "Consulta anterior reaproveitada"
-                }
-            except Exception as e:
-                logger.exception(f"Erro ao recuperar contexto anterior: {e}")
-                raise RuntimeError("Ocorreu um erro ao interpretar sua pergunta anterior. Tente reformular.")
-        else:
-            raise RuntimeError("Não há contexto anterior suficiente para interpretar essa pergunta.")
+        raise RuntimeError("Não há contexto anterior suficiente para interpretar essa pergunta.")
 
     sql = generate_sql_with_memory(question)
     sql = clean_query_output(sql)
-    sql = corrigir_erro_sintaxe(sql)
 
     if not is_valid_sql_structure(sql):
         raise RuntimeError(
             "A IA não conseguiu gerar uma consulta SQL válida para essa pergunta.\n"
-            "Tente reformular sua pergunta, seja mais específico, ou verifique se os dados realmente existem."
+            "Tente reformular sua pergunta, seja mais específico, ou verifique se os dados realmente existem.\n\n"
+            f"Saída recebida:\n{sql}"
         )
 
     col_invalidas, col_validas = validate_columns_in_query(sql)
@@ -113,10 +86,13 @@ def auto_generate_and_run_query(question: str):
     if col_invalidas:
         logger.warning(f"[COLUNAS INVÁLIDAS] {col_invalidas}")
         sql_corrigido = auto_correct_sql(sql, col_invalidas, col_validas)
+
         col_invalidas_corrigidas, _ = validate_columns_in_query(sql_corrigido)
         if col_invalidas_corrigidas:
-            logger.error(f"[COLUNAS NÃO CORRIGIDAS] {col_invalidas_corrigidas}")
-            raise RuntimeError("Ocorreu um erro ao processar sua pergunta. Verifique se os dados existem ou reformule.")
+            raise RuntimeError(
+                f"Não foi possível corrigir automaticamente as colunas inválidas: {', '.join(col_invalidas_corrigidas)}.\n"
+                f"Query original:\n{sql}"
+            )
         else:
             logger.info("[SQL CORRIGIDA] Correção automática bem-sucedida.")
             sql = sql_corrigido
@@ -131,5 +107,7 @@ def auto_generate_and_run_query(question: str):
             "tabela": "Detectada automaticamente"
         }
     except Exception as e:
-        logger.error(f"[EXEC SQL ERRO] SQL: {sql} — Erro: {e}")
-        raise RuntimeError("❌ Ocorreu um erro ao executar a consulta. Tente reformular sua pergunta.")
+        logger.error(f"[EXEC SQL ERRO] {sql} — {e}")
+        raise RuntimeError(
+            f"Erro ao executar a query (mesmo após tentativa de correção).\n\nSQL:\n{sql}\n\nDetalhes:\n{e}"
+        )

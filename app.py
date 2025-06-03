@@ -15,10 +15,14 @@ except ImportError:
 logging.basicConfig(filename="hubia_erros.log", level=logging.ERROR)
 
 # --- CONFIGURAÇÃO DE PÁGINA ---
+<<<<<<< branch-vitor-app
 st.set_page_config(
     page_title="HuB‑IA – Assistente Inteligente para Dados Públicos da Fecomércio",
     layout="wide"
 )
+=======
+st.set_page_config(page_title="HuB-IA - Assistente Inteligente para Dados Públicos da Fecomércio", layout="wide")
+>>>>>>> main
 
 # --- ESTILOS ---
 st.markdown("""
@@ -32,9 +36,17 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- ESTADO DA SESSÃO ---
+<<<<<<< branch-vitor-app
 st.session_state.setdefault("historico", [])
 st.session_state.setdefault("resposta_atual", None)
 st.session_state.setdefault("mostrar_sobre", False)
+=======
+if "resposta_atual" not in st.session_state:
+    st.session_state.resposta_atual = None
+
+if "mostrar_sobre" not in st.session_state:
+    st.session_state.mostrar_sobre = False
+>>>>>>> main
 
 # --- FUNÇÕES ---
 def corrigir_sql(sql: str) -> str:
@@ -80,6 +92,7 @@ with st.sidebar:
         st.session_state.mostrar_sobre = not st.session_state.mostrar_sobre
 
     st.markdown("---")
+<<<<<<< branch-vitor-app
     st.subheader("🕘 Histórico")
     for i, item in enumerate(reversed(st.session_state.historico)):
         if st.button(item['pergunta'], key=f"hist_{i}"):
@@ -87,6 +100,8 @@ with st.sidebar:
     if st.button("🧹 Limpar histórico"):
         st.session_state.historico.clear()
         st.session_state.resposta_atual = None
+=======
+>>>>>>> main
 
 # --- ÁREA PRINCIPAL ---
 st.markdown('<div class="main-title">HuB‑IA – Assistente Inteligente para Dados Públicos da Fecomércio</div>', unsafe_allow_html=True)
@@ -121,8 +136,15 @@ if submit and pergunta.strip():
         if not is_read_only_query(sql):
             st.error("⚠️ Apenas comandos de leitura (SELECT) são permitidos.")
         else:
+<<<<<<< branch-vitor-app
             registro = {"pergunta": pergunta, "resposta": resposta, "dados": dados}
             st.session_state.historico.append(registro)
+=======
+            registro = {
+                "pergunta": pergunta,
+                "resposta": resposta,
+            }
+>>>>>>> main
             st.session_state.resposta_atual = registro
 
     except ResponseError:
