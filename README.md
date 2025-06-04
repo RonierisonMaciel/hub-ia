@@ -57,8 +57,11 @@ text
 Copy
 Edit
 consultor-economico/
+
 ├── app.py
+
 ├── requirements.txt
+
 └── README.md
 
 ## Certifique-se de que o banco de dados MongoDB esteja corretamente configurado e acessível via URI.
