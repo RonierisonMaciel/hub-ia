@@ -1,9 +1,0 @@
-# Ignora ambientes virtuais
-venv/
-.env/
-__pycache__/
-*.pyc
-.pytest_cache/
-.vscode/
-*.sqlite
-*.db

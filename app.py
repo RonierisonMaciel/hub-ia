@@ -1,182 +1,61 @@
 import streamlit as st
-import time
-import logging
-import re
+import requests
+import pymongo
 import pandas as pd
-from rapidfuzz import process
-from core.engine import auto_generate_and_run_query
 
-try:
-    from ollama._client import ResponseError
-except ImportError:
-    ResponseError = Exception
+st.set_page_config(page_title="Consultor Econômico IA", layout="centered")
+st.title("📊 Consultor Econômico Fecomércio - IA")
+# -----------------------------
+# CONFIGURAÇÃO DO BANCO DE DADOS MONGO
+# -----------------------------
+@st.cache_resource
+def conectar_mongo():
+    cliente = pymongo.MongoClient("mongodb+srv://admin:admin@cluster0.chxornv.mongodb.net/")
+    db = cliente["fecomercio"]  # nome do banco
+    colecao = db["fecomercio.json"]  # nome da coleção
+    return colecao
 
-# --- LOG DE ERROS ---
-logging.basicConfig(filename="hubia_erros.log", level=logging.ERROR)
+colecao = conectar_mongo()
 
-# --- CONFIGURAÇÃO DE PÁGINA ---
-<<<<<<< branch-vitor-app
-st.set_page_config(
-    page_title="HuB‑IA – Assistente Inteligente para Dados Públicos da Fecomércio",
-    layout="wide"
-)
-=======
-st.set_page_config(page_title="HuB-IA - Assistente Inteligente para Dados Públicos da Fecomércio", layout="wide")
->>>>>>> main
+# -----------------------------
+# FUNÇÃO PARA OBTER DADOS ECONÔMICOS DO MONGO
+# -----------------------------
+def consultar_dado(pergunta):
+    # Exemplo simples: identificar o termo (ex: IPCA, Recife, 2024)
+    dados = colecao.find()
+    df = pd.DataFrame(list(dados))
 
-# --- ESTILOS ---
-st.markdown("""
-    <style>
-        body { background-color: #0E1117; color: white; }
-        .stTextInput > div > input { font-size: 20px !important; }
-        .main-title { font-size: 40px !important; text-align: center; font-weight: bold; margin-top: 1em; }
-        .sub-title { font-size: 24px !important; text-align: center; margin-top: 0.5em; }
-        .placeholder-text { font-style: italic; color: #ccc; text-align: center; }
-    </style>
-""", unsafe_allow_html=True)
+    # Passar todo o dataframe para o modelo junto da pergunta (modo simplificado)
+    contexto = df.to_markdown(index=False)
+    prompt = f"""
+    VOCÊ É UM CONSULTOR ECONÔMICO. RESPONDA COM BASE NOS DADOS ABAIXO:
 
-# --- ESTADO DA SESSÃO ---
-<<<<<<< branch-vitor-app
-st.session_state.setdefault("historico", [])
-st.session_state.setdefault("resposta_atual", None)
-st.session_state.setdefault("mostrar_sobre", False)
-=======
-if "resposta_atual" not in st.session_state:
-    st.session_state.resposta_atual = None
+    {contexto}
 
-if "mostrar_sobre" not in st.session_state:
-    st.session_state.mostrar_sobre = False
->>>>>>> main
+    PERGUNTA: {pergunta}
 
-# --- FUNÇÕES ---
-def corrigir_sql(sql: str) -> str:
-    sql = re.sub(r"\'\s*-\s*(group|order|having|limit)\b", r"'\n\1", sql, flags=re.IGNORECASE)
-    sql = re.sub(r"([^\s])-(group|order|having|limit)\b", r"\1 \2", sql, flags=re.IGNORECASE)
-    sql = re.sub(r"\s+;", ";", sql)
-    return sql
+    RESPOSTA:
+    """
 
-def consultar(pergunta):
-    resultado = auto_generate_and_run_query(pergunta.strip())
-    sql_corrigido = corrigir_sql(resultado["sql"])
-    return resultado["interpretacao"], sql_corrigido, resultado.get("resultado", [])
+    resposta = requests.post(
+        "http://localhost:11434/api/generate",
+        json={
+            "model": "phi4",
+            "prompt": prompt,
+            "stream": False
+        }
+    )
 
-def is_read_only_query(sql):
-    return sql.strip().lower().startswith("select")
+    return resposta.json().get("response", "Erro ao gerar resposta.")
 
-def typing_effect(text, speed=0.01):
-    placeholder = st.empty()
-    typed = ""
-    for char in text:
-        typed += char
-        placeholder.markdown(typed)
-        time.sleep(speed)
+# -----------------------------
+# STREAMLIT - INTERFACE
+# -----------------------------
 
-def sugerir_perguntas(pergunta):
-    if "ipca" in pergunta.lower():
-        return [
-            "Qual a média do IPCA em 2023?",
-            "Compare o IPCA entre Recife e Salvador.",
-            "IPCA variou quanto em janeiro de 2022?"
-        ]
-    elif "pms" in pergunta:
-        return [
-            "Qual foi a variação da PMS em São Paulo?",
-            "PMS de 2020 a 2023 no Brasil."
-        ]
-    return []
 
-# --- SIDEBAR ---
-with st.sidebar:
-    st.title("Menu")
-    if st.button("ℹ️ Sobre o HuB‑IA"):
-        st.session_state.mostrar_sobre = not st.session_state.mostrar_sobre
+pergunta = st.text_input("Digite sua pergunta sobre os dados econômicos:", "Qual o IPCA de Recife em 2024?")
 
-    st.markdown("---")
-<<<<<<< branch-vitor-app
-    st.subheader("🕘 Histórico")
-    for i, item in enumerate(reversed(st.session_state.historico)):
-        if st.button(item['pergunta'], key=f"hist_{i}"):
-            st.session_state.resposta_atual = item
-    if st.button("🧹 Limpar histórico"):
-        st.session_state.historico.clear()
-        st.session_state.resposta_atual = None
-=======
->>>>>>> main
-
-# --- ÁREA PRINCIPAL ---
-st.markdown('<div class="main-title">HuB‑IA – Assistente Inteligente para Dados Públicos da Fecomércio</div>', unsafe_allow_html=True)
-
-if st.session_state.mostrar_sobre:
-    st.markdown("## Sobre o HuB‑IA")
-    st.markdown("""
-    O **HuB‑IA** é um assistente inteligente que traduz perguntas em linguagem natural em consultas SQL sobre dados econômicos públicos.
-
-    Ele utiliza o **LangChain** e **SQLite**, com dados como:
-
-    - 📈 Índice de Preços ao Consumidor Amplo (IPCA)  
-    - 🛒 Pesquisa Mensal do Comércio (PMC)  
-    - 🏭 Pesquisa Mensal de Serviços (PMS)  
-    - 💳 Transações com cartões  
-
-    Desenvolvido pela **Fecomércio** para democratizar o acesso e a interpretação dos dados econômicos.
-    """)
-    st.stop()
-
-st.markdown('<div class="sub-title">O que você quer saber?</div>', unsafe_allow_html=True)
-
-# --- FORMULÁRIO COM ENTER ---
-with st.form("pergunta_form", clear_on_submit=True):
-    pergunta = st.text_input("", placeholder="Qual a inflação acumulada em Recife?", label_visibility="collapsed")
-    submit = st.form_submit_button("enviar")
-
-if submit and pergunta.strip():
-    try:
-        resposta, sql, dados = consultar(pergunta)
-        
-        if not is_read_only_query(sql):
-            st.error("⚠️ Apenas comandos de leitura (SELECT) são permitidos.")
-        else:
-<<<<<<< branch-vitor-app
-            registro = {"pergunta": pergunta, "resposta": resposta, "dados": dados}
-            st.session_state.historico.append(registro)
-=======
-            registro = {
-                "pergunta": pergunta,
-                "resposta": resposta,
-            }
->>>>>>> main
-            st.session_state.resposta_atual = registro
-
-    except ResponseError:
-        logging.exception(f"Erro LLM - pergunta: {pergunta}")
-        st.error("❌ Erro ao processar a pergunta. Tente novamente mais tarde.")
-    except Exception:
-        logging.exception(f"Erro inesperado - pergunta: {pergunta}")
-        st.error("❌ Ocorreu um erro ao interpretar sua pergunta. Tente reformular.")
-
-# --- EXIBIÇÃO DA RESPOSTA ---
-if st.session_state.resposta_atual:
-    typing_effect(st.session_state.resposta_atual["resposta"])
-
-    dados = st.session_state.resposta_atual.get("dados")
-    if dados and isinstance(dados, list):
-        try:
-            df = pd.DataFrame(dados)
-            if not df.empty:
-                st.markdown("### Resultado:")
-                st.dataframe(df)
-            else:
-                st.warning("⚠️ Nenhum dado encontrado para essa consulta.")
-        except Exception as e:
-            st.error("❌ Erro ao exibir os dados.")
-            st.exception(e)
-    else:
-        st.warning("⚠️ Nenhum dado encontrado para essa consulta.")
-
-    st.markdown("<p class='placeholder-text'>Você pode perguntar por ano, por localidade ou comparar períodos distintos.</p>", unsafe_allow_html=True)
-
-    sugestoes = sugerir_perguntas(st.session_state.resposta_atual["pergunta"])
-    if sugestoes:
-        st.markdown("### 💡 Sugestões:")
-        for s in sugestoes:
-            st.markdown(f"- {s}")
+if st.button("Perguntar"):
+    resposta = consultar_dado(pergunta)
+    st.markdown("### Resposta da IA")
+    st.success(resposta)
