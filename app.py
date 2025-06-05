@@ -14,7 +14,7 @@ st.title("📊 Consultor Econômico Fecomércio - IA")
 # -----------------------------
 @st.cache_resource
 def conectar_mongo():
-    cliente = pymongo.MongoClient("mongodb+srv://admin:admin@cluster0.chxornv.mongodb.net/")
+    cliente = pymongo.MongoClient("conexão com o banco")
     db = cliente["fecomercio"]  # nome do banco
     colecao = db["fecomercio.json"]  # nome da coleção
     return colecao
