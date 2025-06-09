@@ -9,6 +9,7 @@ from langchain_ollama import OllamaLLM
 
 from core.prompts import make_system_prompt, make_system_prompt_all, INTERPRET_SYSTEM_PROMPT
 from core.utils import strip_sql_markup
+from core.history import get_history, add_to_history
 
 # Configuração do logger
 logging.basicConfig(level=logging.INFO)
@@ -30,6 +31,14 @@ def normalize_question(q: str) -> str:
     for pattern, replacement in replacements.items():
         q = re.sub(pattern, replacement, q, flags=re.IGNORECASE)
     return q
+
+
+def get_last_valid_sql() -> str:
+    history = get_history(limit=20)
+    for entry in reversed(history):
+        if entry["role"] == "assistant" and entry["content"].strip().lower().startswith(("select", "with")):
+            return entry["content"]
+    return ""
 
 
 def enrich_question(q: str) -> str:
@@ -73,6 +82,7 @@ def generate_sql_with_memory(question: str) -> str:
     enriched = enrich_question(cleaned)
 
     messages = [{"role": "system", "content": make_system_prompt_all()}]
+    messages += get_history(limit=10)
     messages.append({"role": "user", "content": enriched})
 
     raw = _LLM.invoke(messages)
@@ -81,5 +91,8 @@ def generate_sql_with_memory(question: str) -> str:
     logger.info(f"[Pergunta original] {question}")
     logger.info(f"[Pergunta enriquecida] {enriched}")
     logger.info(f"[SQL gerada] {sql}")
+
+    add_to_history("user", question)
+    add_to_history("assistant", sql)
 
     return sql
