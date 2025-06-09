@@ -148,4 +148,4 @@ if st.session_state.resposta_atual:
     if sugestoes:
         st.markdown("### 💡 Sugestões:")
         for s in sugestoes:
-            st.markdown(f"- {s}")
+            st.markdown(f"- {s}")a
