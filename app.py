@@ -244,8 +244,7 @@ def aplicar_estilos():
                 border-radius: 20px;
                 border-left: 6px solid #667eea;
                 margin: 2rem 0;
-                box-shadow: 0 6px 25px rgba(0, 0, 0, 0.08);
-            }
+                deacti
 
             .response-text {
                 font-size: 1.15rem;
